@@ -1,25 +1,24 @@
-from operator import length_hint
 import numpy as np
-from scipy.signal import butter, filtfilt, find_peaks
 import matplotlib.pyplot as plt
-from scipy.signal import convolve
+from scipy.signal import butter, filtfilt, convolve, find_peaks
 import scipy.io as sio
 
-def spikeExtractor(xb, Fs, paramVBDS, display=True, verb=True):
-    # Filtrage
+def spikeExtractor(xb, Fs, paramVBDS, display, verb):
+    l, c = xb.shape
+    T = max(l, c)
 
-
+    # band pass filtering
     low = paramVBDS['spike_band'][0] / (Fs/2)
     high = paramVBDS['spike_band'][1] / (Fs/2)
     b, a = butter(2, [low, high], btype='band')
     xb_spkband = filtfilt(b, a, xb)
 
-
+    
     # Thresholds
     thrQ = paramVBDS['coef'] * np.median(np.abs(xb_spkband)) / 0.6745
     thrQH = paramVBDS['coefH'] * thrQ
 
-    # Détection des pics
+        # Détection des pics
     if xb_spkband.ndim != 1:
         xb_spkband = xb_spkband.flatten()
 
@@ -42,7 +41,6 @@ def spikeExtractor(xb, Fs, paramVBDS, display=True, verb=True):
 
     ns = max(int(Fs * paramVBDS['ds'] / 1000), 32)
 
-    # Continuez avec le reste de votre code...
 
 
     # Avoid border effects
@@ -65,60 +63,72 @@ def spikeExtractor(xb, Fs, paramVBDS, display=True, verb=True):
         plt.show()
 
 
+
     # Extract spike waveforms
+    Ns = len(ideltas)
+    deltas = np.zeros((max(l, c), 1)) 
+    deltas[ideltas, 0] = 1
 
-    ns = max(int(Fs /paramVBDS['ds'] * 1000), 2**5)
+    deltafen = convolve(deltas[:, 0], np.ones(ns), mode='full')
+    deltafen = deltafen[int(ns / 2):len(deltafen) - int(ns / 2)]
+    deltafen = np.append(deltafen, 0)
+    xb_spkband = xb_spkband[:len(deltafen)]
 
-    deltas = np.zeros(len(xb[0]))
-    deltas[ideltas] = 1
 
-    deltafen = convolve(deltas, np.ones(int(ns)), mode='full')[:len(xb_spkband)]
+    print("xb_",len(xb_spkband))
+    print("delta",len(deltafen))
     spkband = deltafen * xb_spkband
     spk = deltafen * xb
-    
-    # Outliers filtering
+  
 
-    mspkband = np.max(np.abs(spkband), axis=0)
+    # Trouvez les indices non nuls
+    iNZ = np.where(spkband != 0)[0]
+    print("iNZ",len(iNZ))
+    spk1=spk[0]
 
-    print("Valeurs maximales (mspkband) :", mspkband)
+    # Filtrez les valeurs non nulles
+    spkband = spkband[iNZ]
+    spk1 = spk1[iNZ]
 
-    mask = mspkband >= thrQH
-    spkband = spkband[:, mask]  # Assurez-vous que les colonnes correspondant au masque sont sélectionnées
-    spk = spk[:, mask]  # Assurez-vous de faire la même opération pour spk
-    ideltas = ideltas[mask]
+    # Redimensionnez les tableaux correctement
+    spkband = np.reshape(spkband, (Ns, ns)).T
+    spk1 = np.reshape(spk1, (Ns, ns)).T
 
-    transposed_data = list(map(list, zip(*spkband)))
+    # Filtrez les outliers
+    mspkband = np.max(np.abs(spkband), axis=1)
 
-    # Créer un graphique à lignes
-    for series in transposed_data:
-        plt.plot(series)
+    mspkband = np.max(np.abs(spkband), axis=1)
+    print("mspkband",mspkband)
 
-    # Afficher le graphe
-    plt.show()
+    print("len mspkband",len(mspkband))
+    spkband = spkband[mspkband <= thrQH, : ]
+    spk1 = spk1[mspkband <= thrQH, : ]  
+    print("spkband",len(spkband))
+    ideltas = ideltas[spkband[1]<= thrQH] 
+ 
+    Ns = len(ideltas)
+    deltas = np.zeros((max(l, c), 1))
+    deltas[ideltas] = 1
 
-    print('mask', mask)
-    print('spk',spkband)
 
+    # paramVBDS update with ideltas
+    paramVBDS['ideltas'] = ideltas
 
-    #if display:
-       # plt.figure()
-       # plt.plot(spkband.T)
-      # plt.title('Superimposed extracted spike waveforms (from filtered data)')
-        #plt.show()
+    if display:
+        plt.figure()
+        plt.plot(spkband.T)
+        plt.title('Superimposed extracted spike waveforms (from filtered data)')
+        plt.show()
 
     if verb:
         print('####################')
         print('END OF SPIKE EXTRACTION')
-        print('Number of detected events:', len(ideltas))
-        print('####################')
-        print(' ')
-
-    paramVBDS['ideltas'] = ideltas
+        print('Number of detected events:', Ns)
+        print('####################\n')
 
     return xb_spkband, spkband, spk, paramVBDS
 
-
-# données de test
+    # données de test
 
 if __name__=='__main__':
 
@@ -129,6 +139,8 @@ if __name__=='__main__':
     # Access the variables you need from the dictionary
     xb = mat_contents['xb']
     Fs= mat_contents['Fs']
+    #Fs = mat_contents['Fs'][0, 0]  # Extrait la valeur unique de la matrice 1x1
+
     paramVBDS = {
         'spike_band': [300, 3000],
         'coef': 4,
