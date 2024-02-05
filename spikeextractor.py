@@ -66,6 +66,7 @@ def spikeExtractor(xb, Fs, paramVBDS, display, verb):
 
     # Extract spike waveforms
     Ns = len(ideltas)
+    print("Ns",Ns)
     deltas = np.zeros((max(l, c), 1)) 
     deltas[ideltas, 0] = 1
 
@@ -77,10 +78,12 @@ def spikeExtractor(xb, Fs, paramVBDS, display, verb):
 
     print("xb_",len(xb_spkband))
     print("delta",len(deltafen))
+    
+    spkband = np.array([])
+
     spkband = deltafen * xb_spkband
     spk = deltafen * xb
   
-
     # Trouvez les indices non nuls
     iNZ = np.where(spkband != 0)[0]
     print("iNZ",len(iNZ))
@@ -92,19 +95,19 @@ def spikeExtractor(xb, Fs, paramVBDS, display, verb):
 
     # Redimensionnez les tableaux correctement
     spkband = np.reshape(spkband, (Ns, ns)).T
+    print("len spkband apres reshape",len(spkband))
     spk1 = np.reshape(spk1, (Ns, ns)).T
 
     # Filtrez les outliers
     mspkband = np.max(np.abs(spkband), axis=1)
 
-    mspkband = np.max(np.abs(spkband), axis=1)
-    print("mspkband",mspkband)
+    print("mspkband",len(mspkband))
 
-    print("len mspkband",len(mspkband))
-    spkband = spkband[mspkband <= thrQH, : ]
-    spk1 = spk1[mspkband <= thrQH, : ]  
-    print("spkband",len(spkband))
-    ideltas = ideltas[spkband[1]<= thrQH] 
+    spkband= spkband[mspkband<= thrQH,:]
+    spk1= spk1[mspkband <= thrQH,:] 
+
+    #ideltas = ideltas[mspkband<= thrQH] 
+
  
     Ns = len(ideltas)
     deltas = np.zeros((max(l, c), 1))
