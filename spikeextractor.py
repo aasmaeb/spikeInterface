@@ -108,7 +108,7 @@ def spikeExtractor(xb, Fs, paramVBDS, display, verb):
     spkband1= spkband1[mspkband<= thrQH,:]
     #spk1= spk1[mspkband <= thrQH,:] 
 
-    #ideltas = ideltas[mspkband<= thrQH] 
+    ideltas = ideltas[mspkband<= thrQH] 
 
  
     Ns = len(ideltas)
@@ -162,8 +162,5 @@ if __name__=='__main__':
     verb=True
     mode=True
     spikeExtractor(xb,Fs,paramVBDS,display,verb)
-# AJUSTER LA FONCTION SUR NOTRE K IL ME DONNE PLUSIEUR VALEUR DE K SUR RISSTRIAL ON VA CHOISIR UN K QUI ME DONNE UNE VALEUR MINIMALE DE NOTRE CRIT7RE 
-    # EXTRACTION DES SPIKE ET LA CLASSIFICATION 
-    #LE SENS DU spKBAND on agit sur les lignes 
-    # le rapport est mardi 
+
     
