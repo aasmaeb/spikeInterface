@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import butter, filtfilt, convolve, find_peaks
 import scipy.io as sio
+from scipy.interpolate import interp1d
 
 def spikeExtractor(xb, Fs, paramVBDS, display, verb):
     l, c = xb.shape
@@ -13,7 +14,7 @@ def spikeExtractor(xb, Fs, paramVBDS, display, verb):
     b, a = butter(2, [low, high], btype='band')
     xb_spkband = filtfilt(b, a, xb)
 
-    
+
     # Thresholds
     thrQ = paramVBDS['coef'] * np.median(np.abs(xb_spkband)) / 0.6745
     thrQH = paramVBDS['coefH'] * thrQ
@@ -30,6 +31,10 @@ def spikeExtractor(xb, Fs, paramVBDS, display, verb):
     peaks, _ = find_peaks(np.abs(xb_spkband), distance=50)
 
     ideltas = peaks[np.abs(xb_spkband[peaks]) > thrQ]
+    print("ideltas",len(ideltas))
+    ns1 = max(12000 / 1e3 * 3, 2**5)
+    ns=int(ns1)
+    print("ns",ns)
 
     # Eliminate overlapping events
     mini = np.min(np.diff(ideltas))
@@ -37,11 +42,6 @@ def spikeExtractor(xb, Fs, paramVBDS, display, verb):
         isuppr = np.argmin(np.abs(xb_spkband[ideltas[imini:imini+2]]))
         ideltas= np.delete(ideltas, imini + isuppr - 1)
         mini = np.min(np.diff(ideltas))
-
-
-    ns = max(int(Fs * paramVBDS['ds'] / 1000), 32)
-
-
 
     # Avoid border effects
     ideltas[(ideltas <= ns)] =[]
@@ -62,12 +62,10 @@ def spikeExtractor(xb, Fs, paramVBDS, display, verb):
         plt.title('Filtered data with detected spikes as *')
         plt.show()
 
-
-
     # Extract spike waveforms
     Ns = len(ideltas)
     print("Ns",Ns)
-    deltas = np.zeros((max(l, c), 1)) 
+    deltas = np.zeros((max(l, c), 1))
     deltas[ideltas, 0] = 1
 
     deltafen = convolve(deltas[:, 0], np.ones(ns), mode='full')
@@ -75,15 +73,14 @@ def spikeExtractor(xb, Fs, paramVBDS, display, verb):
     deltafen = np.append(deltafen, 0)
     xb_spkband = xb_spkband[:len(deltafen)]
 
-
     print("xb_",len(xb_spkband))
     print("delta",len(deltafen))
-    
+
     spkband = np.array([])
 
     spkband = deltafen * xb_spkband
     spk = deltafen * xb
-  
+
     # Trouvez les indices non nuls
     iNZ = np.where(spkband != 0)[0]
     print("iNZ",len(iNZ))
@@ -91,6 +88,7 @@ def spikeExtractor(xb, Fs, paramVBDS, display, verb):
 
     # Filtrez les valeurs non nulles
     spkband = spkband[iNZ]
+    print("spkband",len(spkband))
     spk1 = spk1[iNZ]
 
     # Redimensionnez les tableaux correctement
@@ -103,21 +101,28 @@ def spikeExtractor(xb, Fs, paramVBDS, display, verb):
 
     print("mspkband",len(mspkband))
     spkband1= np.transpose(spkband)
-    spk1= np.transpose(spk)
+    spk2= np.transpose(spk1)
 
     spkband1= spkband1[mspkband<= thrQH,:]
-    #spk1= spk1[mspkband <= thrQH,:] 
+    spk2= spk2[mspkband <= thrQH,:]
+    print("spk2",spk2)
+    print("spkband1",spkband1)
 
-    ideltas = ideltas[mspkband<= thrQH] 
+    ideltas = ideltas[mspkband<= thrQH]
 
- 
+
     Ns = len(ideltas)
     deltas = np.zeros((max(l, c), 1))
     deltas[ideltas] = 1
+    print("spk2",spk2.shape)
+    print("spKband1",spkband1.shape)
+    print("ideltas",len(ideltas))
 
 
     # paramVBDS update with ideltas
     paramVBDS['ideltas'] = ideltas
+    print("xb_spkband",xb_spkband)
+
 
     if display:
         plt.figure()
@@ -131,7 +136,8 @@ def spikeExtractor(xb, Fs, paramVBDS, display, verb):
         print('Number of detected events:', Ns)
         print('####################\n')
 
-    return xb_spkband, spkband, spk, paramVBDS
+    return xb_spkband, spkband1, spk2, ideltas
+
 
     # données de test
 
@@ -144,6 +150,7 @@ if __name__=='__main__':
     # Access the variables you need from the dictionary
     xb = mat_contents['xb']
     Fs= mat_contents['Fs']
+    print(Fs)
     #Fs = mat_contents['Fs'][0, 0]  # Extrait la valeur unique de la matrice 1x1
 
     paramVBDS = {
@@ -161,6 +168,5 @@ if __name__=='__main__':
     display= True
     verb=True
     mode=True
-    spikeExtractor(xb,Fs,paramVBDS,display,verb)
-
-    
+    xb_spkband, spkband1, spk2, ideltas= spikeExtractor(xb,Fs,paramVBDS,display,verb)
+   
